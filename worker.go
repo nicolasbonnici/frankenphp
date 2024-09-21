@@ -124,7 +124,11 @@ func startWorkers(fileName string, nbWorkers int, env PreparedEnv) error {
 
 				// TODO: make the max restart configurable
 				if _, ok := workersRequestChans.Load(absFileName); ok {
-					workersReadyWG.Add(1)
+					if fc.ready {
+						fc.ready = false
+						workersReadyWG.Add(1)
+					}
+
 					if fc.exitStatus == 0 {
 						if c := l.Check(zapcore.InfoLevel, "restarting"); c != nil {
 							c.Write(zap.String("worker", absFileName))
@@ -186,7 +190,10 @@ func stopWorkers() {
 }
 
 //export go_frankenphp_worker_ready
-func go_frankenphp_worker_ready() {
+func go_frankenphp_worker_ready(mrh C.uintptr_t) {
+	mainRequest := cgo.Handle(mrh).Value().(*http.Request)
+	fc := mainRequest.Context().Value(contextKey).(*FrankenPHPContext)
+	fc.ready = true
 	workersReadyWG.Done()
 }
 
